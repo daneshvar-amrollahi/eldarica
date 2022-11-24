@@ -1,0 +1,3 @@
+append([], Z, Z).
+append([X | Y], Z, [X | R]) :- append(Y, Z, R).
+pair_children(child(X), child(Y), [X, Y]).

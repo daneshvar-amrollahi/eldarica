@@ -1,0 +1,5 @@
+a(X, Y) :- b(X), c(Y).
+d(hi).
+e(hi, bye, f(X, Y), salam, j(M, n(M, q(r)), z), p, M).
+g.
+:- h, i(X, y).
