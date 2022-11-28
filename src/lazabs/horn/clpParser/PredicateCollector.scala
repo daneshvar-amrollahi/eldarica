@@ -2,7 +2,7 @@ package prolog
 
 class PredicateCollector extends FoldVisitor[List[(String, Int)], Unit] {
 
-    def combine(a: List[(String, Int)], b: List[(String, Int)], u: Unit) = a ++ b
+    def combine(a: List[(String, Int)], b: List[(String, Int)], u: Unit) = (a ++ b).distinct
     def leaf(u: Unit) = List[(String, Int)]()
 
     override def visit(p: prolog.Absyn.Atm, u: Unit) = {
