@@ -23,4 +23,20 @@ class FunctionCollector extends FoldVisitor[List[(String, Int)], Unit] {
         result
     }
 
+    override def visit(p: prolog.Absyn.TAtom, u: Unit) = {
+        var result = leaf(u)
+        val atm = p.atom_
+        if (atm.isInstanceOf[prolog.Absyn.Atm]) {
+            val name = atm.asInstanceOf[prolog.Absyn.Atm].lident_
+            result =  combine(result, List[(String, Int)](name -> 0), u)
+        } else if (atm.isInstanceOf[prolog.Absyn.EAtm]) {
+            val name = atm.asInstanceOf[prolog.Absyn.EAtm].ident_
+            result =  combine(result, List[(String, Int)](name -> 0), u)
+        } else {
+            throw new RuntimeException("Unknown atom type: " + atm)
+        }
+        result
+    }
+
+
 }
