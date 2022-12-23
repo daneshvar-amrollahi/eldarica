@@ -143,6 +143,12 @@ object CLPReader {
                 val head: HornLiteral = hls.last
                 val body: List[HornLiteral] = hls.dropRight(1)
                 result = result :+ new HornClause(head, body)
+            } else if (clause.isInstanceOf[prolog.Absyn.Query]) {
+                val query = clause.asInstanceOf[prolog.Absyn.Query]
+                val hls = astBuilder.visit(query, ())._1
+                val body: List[HornLiteral] = hls
+                val head: HornLiteral = new Interp(new BoolConst(false))
+                result = result :+ new HornClause(head, body)
             }
         }
         result

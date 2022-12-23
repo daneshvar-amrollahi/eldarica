@@ -176,4 +176,22 @@ class ASTBuilder(adt: ADT) extends FoldVisitor[(List[HornLiteral], String), Unit
         (hornLiterals, "")
     }
 
+    override def visit(query: prolog.Absyn.Query, u: Unit) = {
+        var hornLiterals = List[HornLiteral]()
+
+        for (i <- 0 until query.listpredicate_.size()) {
+            val predicate = query.listpredicate_.get(i)
+            var result = leaf(u)
+            if (predicate.isInstanceOf[prolog.Absyn.APred]) {
+                result = predicate.asInstanceOf[prolog.Absyn.APred].accept(this, u)
+            } else if (predicate.isInstanceOf[prolog.Absyn.CPred]) {
+                result = predicate.asInstanceOf[prolog.Absyn.CPred].accept(this, u)
+            }
+            val hls: List[HornLiteral] = result._1
+            hornLiterals = hornLiterals ++ hls
+        }
+
+        (hornLiterals, "")
+    }
+
 }
