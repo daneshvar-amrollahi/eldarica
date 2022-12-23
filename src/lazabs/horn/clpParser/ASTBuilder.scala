@@ -13,7 +13,7 @@ class ASTBuilder(adt: ADT) extends FoldVisitor[(List[HornLiteral], String), Unit
     }
 
     var varCount = 0
-    var Seq(usort) = adt.sorts
+    val usort = adt.sorts.head
     def getFreshVarName() = {
         varCount += 1
         "V_" + varCount
@@ -32,9 +32,9 @@ class ASTBuilder(adt: ADT) extends FoldVisitor[(List[HornLiteral], String), Unit
         val atomName = atom.lident_
         val freshVar = getFreshVarName()
         val hl : HornLiteral = new Interp(
-            BinaryExpression(new Variable(freshVar), EqualityOp(), new ADTctor(adt, atomName, List()))
-        ) 
-        println("Atom: " + atomName + " -> " + freshVar)
+            BinaryExpression(new Variable(freshVar).stype(new AdtType(usort)), EqualityOp(), new ADTctor(adt, atomName, List()).stype(new AdtType(usort)))
+        )
+        
         (List[HornLiteral](hl), freshVar)
     }
 
@@ -42,9 +42,8 @@ class ASTBuilder(adt: ADT) extends FoldVisitor[(List[HornLiteral], String), Unit
         val atomName = atom.ident_
         val freshVar = getFreshVarName()
         val hl : HornLiteral = new Interp(
-            BinaryExpression(new Variable(freshVar), EqualityOp(), new ADTctor(adt, atomName, List()))
+            BinaryExpression(new Variable(freshVar).stype(new AdtType(usort)), EqualityOp(), new ADTctor(adt, atomName, List()).stype(new AdtType(usort)))
         ) 
-        println("EAtom: " + atomName + " -> " + freshVar)
         (List[HornLiteral](hl), freshVar)
     }
 
@@ -57,35 +56,39 @@ class ASTBuilder(adt: ADT) extends FoldVisitor[(List[HornLiteral], String), Unit
             val term = complex.listterm_.get(i)
             if (term.isInstanceOf[prolog.Absyn.TAtom]) {
                 val atom = term.asInstanceOf[prolog.Absyn.TAtom].atom_
-                val arg = atom.accept(this, u)
-                val argVar: String = arg._2
-                val argHLs: List[HornLiteral] = arg._1
-                variables = variables :+ new Variable(argVar)
-                hls = hls ++ argHLs
+                if (atom.isInstanceOf[prolog.Absyn.Atm]) {
+                    val atm = atom.asInstanceOf[prolog.Absyn.Atm]
+                    val arg = atm.accept(this, u)
+                    val argVar: String = arg._2
+                    val argHLs: List[HornLiteral] = arg._1
+                    variables = variables :+ new Variable(argVar).stype(new AdtType(usort))
+                    hls = hls ++ argHLs
+                } else if (atom.isInstanceOf[prolog.Absyn.EAtm]) {
+                    val eatm = atom.asInstanceOf[prolog.Absyn.EAtm]
+                    val arg = eatm.accept(this, u)
+                    val argVar: String = arg._2
+                    val argHLs: List[HornLiteral] = arg._1
+                    variables = variables :+ new Variable(argVar).stype(new AdtType(usort))
+                    hls = hls ++ argHLs
+                } 
             } else if (term.isInstanceOf[prolog.Absyn.Complex]) {
                 val complex = term.asInstanceOf[prolog.Absyn.Complex]
                 val arg = complex.accept(this, u)
                 val argVar: String = arg._2
                 val argHLs: List[HornLiteral] = arg._1
-                variables = variables :+ new Variable(argVar)
+                variables = variables :+ new Variable(argVar).stype(new AdtType(usort))
                 hls = hls ++ argHLs
             } else if (term.isInstanceOf[prolog.Absyn.VarT]) {
                 val varName = term.asInstanceOf[prolog.Absyn.VarT].var_.asInstanceOf[prolog.Absyn.V].uident_ // Fix for Wild
-                variables = variables :+ new Variable(varName)
-            }
+                variables = variables :+ new Variable(varName).stype(new AdtType(usort))
+            }             
         }
 
         val functionName: String = getName(complex.atom_)
         val freshVar: String = getFreshVarName()
         val hl: HornLiteral = new Interp(
-            BinaryExpression(new Variable(freshVar), EqualityOp(), new ADTctor(adt, functionName, variables))
+            BinaryExpression(new Variable(freshVar).stype(new AdtType(usort)), EqualityOp(), new ADTctor(adt, functionName, variables).stype(new AdtType(usort)))
         )
-
-        println()
-        println("Complex")
-        println(complex + " " + functionName + " -> " + freshVar)
-        println()
-
         (hls :+ hl, freshVar)
     }
 
@@ -94,7 +97,7 @@ class ASTBuilder(adt: ADT) extends FoldVisitor[(List[HornLiteral], String), Unit
         val atom = pred.atom_
         val relationName = getName(atom)
         val hl: HornLiteral = new RelVar(relationName, List[Parameter]()) 
-        (List[HornLiteral](hl), "")
+        (List[HornLiteral](hl),relationName)
     }
 
     override def visit(pred: prolog.Absyn.CPred, u: Unit) = {
@@ -106,11 +109,21 @@ class ASTBuilder(adt: ADT) extends FoldVisitor[(List[HornLiteral], String), Unit
             val term = pred.listterm_.get(i)
             if (term.isInstanceOf[prolog.Absyn.TAtom]) {
                 val atom = term.asInstanceOf[prolog.Absyn.TAtom].atom_
-                val arg = atom.accept(this, u)
-                val argVar: String = arg._2
-                val argHLs: List[HornLiteral] = arg._1
-                parameters = parameters :+ new Parameter(argVar, new AdtType(usort))
-                hls = hls ++ argHLs
+                if (atom.isInstanceOf[prolog.Absyn.Atm]) {
+                    val atm = atom.asInstanceOf[prolog.Absyn.Atm]
+                    val arg = atm.accept(this, u)
+                    val argVar: String = arg._2
+                    val argHLs: List[HornLiteral] = arg._1
+                    parameters = parameters :+ new Parameter(argVar, new AdtType(usort))
+                    hls = hls ++ argHLs
+                } else if (atom.isInstanceOf[prolog.Absyn.EAtm]) {
+                    val eatm = atom.asInstanceOf[prolog.Absyn.EAtm]
+                    val arg = eatm.accept(this, u)
+                    val argVar: String = arg._2
+                    val argHLs: List[HornLiteral] = arg._1
+                    parameters = parameters :+ new Parameter(argVar, new AdtType(usort))
+                    hls = hls ++ argHLs
+                } 
             } else if (term.isInstanceOf[prolog.Absyn.Complex]) {
                 val complex = term.asInstanceOf[prolog.Absyn.Complex]
                 val arg = complex.accept(this, u)
@@ -121,24 +134,9 @@ class ASTBuilder(adt: ADT) extends FoldVisitor[(List[HornLiteral], String), Unit
             } else if (term.isInstanceOf[prolog.Absyn.VarT]) {
                 val varName = term.asInstanceOf[prolog.Absyn.VarT].var_.asInstanceOf[prolog.Absyn.V].uident_ // Fix for Wild
                 parameters = parameters :+ new Parameter(varName, new AdtType(usort))
-            }
-        }
-
-        println()
-        println("CPred")
-        println("Parameters: " + parameters)
-        println("Relation Name: " + relationName)
-        
-
+            } 
+        }        
         val hl: HornLiteral = new RelVar(relationName, parameters)
-
-        val result = hls :+ hl
-
-        println("Horn Literals:")
-        for (hl <- result)
-            println(hl)
-
-        println()
         (hls :+ hl, "")
     }
 
@@ -151,6 +149,31 @@ class ASTBuilder(adt: ADT) extends FoldVisitor[(List[HornLiteral], String), Unit
             result = predicate.asInstanceOf[prolog.Absyn.CPred].accept(this, u)
         }
         result
+    }
+
+    override def visit(rule: prolog.Absyn.Rule, u: Unit) = {
+        var hornLiterals = List[HornLiteral]()
+
+        for (i <- 0 until rule.listpredicate_.size()) {
+            val predicate = rule.listpredicate_.get(i)
+            var result = leaf(u)
+            if (predicate.isInstanceOf[prolog.Absyn.APred]) {
+                result = predicate.asInstanceOf[prolog.Absyn.APred].accept(this, u)
+            } else if (predicate.isInstanceOf[prolog.Absyn.CPred]) {
+                result = predicate.asInstanceOf[prolog.Absyn.CPred].accept(this, u)
+            }
+            val hls: List[HornLiteral] = result._1
+            hornLiterals = hornLiterals ++ hls
+        }
+
+        val headPredicate = rule.predicate_.asInstanceOf[prolog.Absyn.Predicate]
+        if (headPredicate.isInstanceOf[prolog.Absyn.APred]) {
+            hornLiterals = hornLiterals ++ headPredicate.asInstanceOf[prolog.Absyn.APred].accept(this, u)._1
+        } else if (headPredicate.isInstanceOf[prolog.Absyn.CPred]) {
+            hornLiterals = hornLiterals ++ headPredicate.asInstanceOf[prolog.Absyn.CPred].accept(this, u)._1
+        }
+
+        (hornLiterals, "")
     }
 
 }
