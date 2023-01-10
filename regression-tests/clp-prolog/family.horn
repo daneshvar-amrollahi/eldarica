@@ -1,0 +1,41 @@
+man(adam). 
+man(peter). 
+man(paul). 
+
+woman(marry). 
+woman(eve). 
+
+parent(adam,peter).
+parent(eve,peter). 
+parent(adam,paul). 
+parent(marry,paul). 
+
+father(F,C):-man(F),parent(F,C). 
+mother(M,C):-woman(M),parent(M,C). 
+
+full_siblings(A,B):- 
+              parent(F,A),parent(F,B),
+              parent(M,A),parent(M,B),
+              A #\= B, F #\= M.
+
+son(S,P):-man(S),parent(P,S). 
+
+daughter(D,P):-woman(D),parent(P,D). 
+
+siblings(A,B):-parent(P,A),parent(P,B),A #\= B. 
+
+uncle(U,N):-man(U),siblings(U,P),parent(P,N). 
+
+aunt(A,N):-woman(A),siblings(A,P),parent(P,N). 
+
+grand_parent(G,N):-parent(G,X),parent(X,N). 
+
+parent(a, b).
+parent(b, c).
+parent(c, d).
+parent(d, e).
+
+descendent(D,A):-parent(A,D). 
+descendent(D,A):-parent(P,D),descendent(P,A). 
+
+?- siblings(X, Y), parent(Z, peter), man(Z), descendent(M, N).
