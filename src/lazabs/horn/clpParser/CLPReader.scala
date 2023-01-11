@@ -16,7 +16,7 @@ import lazabs.types._
 
 object CLPReader {
     def apply(fileName: String): Seq[HornClause] = {
-        func()
+        
         val in = new java.io.BufferedReader (
                  new java.io.FileReader(fileName))
         val lexer = new Yylex(in)
@@ -34,34 +34,36 @@ object CLPReader {
         val functions = FunctionCollector.visit(ast, ());
 
         createClauses(predicates, functions, ast)
-        // func()
     }
 
     //hi:0, f:2
     def func(): Seq[HornClause] = {
         // // r(hi, f(X, hi)) :- q(hi, X) 
-        // val adt = new ADT(
-        //     Seq("U"),
-        //     Seq(
-        //         ("hi", CtorSignature(Seq(), ADTSort(0))),
-        //         ("f", CtorSignature(Seq(("f1", ADTSort(0)), ("f2", ADTSort(0))), ADTSort(0))) 
-        //     )
-        // )
-        // val Seq(u) = adt.sorts
-        // val Seq(hi, f) = adt.constructors
+        val adt = new ADT(
+            Seq("U"),
+            Seq(
+                ("hi", CtorSignature(Seq(), ADTSort(0))),
+                ("f", CtorSignature(Seq(("f1", ADTSort(0)), ("f2", ADTSort(0))), ADTSort(0))) 
+            )
+        )
+        
+        val Seq(u) = adt.sorts
+        val Seq(hi, f) = adt.constructors
         // // val Seq(_, Seq(f1, f2)) = adt.selectors
-        // SimpleAPI.withProver { p =>
-        //     import p._
-        //     val x = createConstant("x", u)
-        //     val r = createRelation("r", Seq(u, u))
-        //     val q = createRelation("q", Seq(u, u))
-        //     val prop = (r(hi(), f(x, hi())) :- q(hi(), x))
-        //     SimpleWrapper.solve(prop::Nil) match {
-        //         case Left(sol) =>
-        //             println("sat") ; println(sol mapValues (pp(_) ) )
-        //         case Right(cex) =>
-        //             println("unsat") ; println(cex)
-        //     }
+        SimpleAPI.withProver { p =>
+            import p._
+            val x = createConstant("x", u)
+            val r = createRelation("r", Seq(u, u))
+            val q = createRelation("q", Seq(u, u))
+            val boz = f(x)
+            val prop = (r(hi(), f(x, hi())) :- q(hi(), x))
+            SimpleWrapper.solve(prop::Nil) match {
+                case Left(sol) =>
+                    println("sat") ; println(sol mapValues (pp(_) ) )
+                case Right(cex) =>
+                    println("unsat") ; println(cex)
+            }
+        }
 
 
         // Goal: r(hi, f(X, hi)) :- q(hi, X) 
@@ -74,15 +76,21 @@ object CLPReader {
 
         // r(Y, Z) :- q(X, Y), Y = hi, Z = f(X, Y).
         
-        val adt = new ADT(
-            Seq("U"),
-            Seq(
-                ("hi", CtorSignature(Seq(), ADTSort(0))),
-                ("f", CtorSignature(Seq(("f1", ADTSort(0)), ("f2", ADTSort(0))), ADTSort(0))) 
-            )
-        )
+        // val adt = new ADT(
+        //     Seq("U"),
+        //     Seq(
+        //         ("hi", CtorSignature(Seq(), ADTSort(0))),
+        //         ("f", CtorSignature(Seq(("f1", ADTSort(0)), ("f2", ADTSort(0))), ADTSort(0))) 
+        //     )
+        // )
 
+        /*
         val Seq(u) = adt.sorts
+        
+        println("ADT is " + adt)
+        val boz = adt.constructors
+        println("cons's are " + boz)
+
 
         val q: HornLiteral = new RelVar("q", List[Parameter](
                 new Parameter("Y", new AdtType(u)),
@@ -107,23 +115,25 @@ object CLPReader {
         // no head ==> new Interp(new BoolConst(false))
 
         Seq(clause)
+        */
+        Seq()
     }
 
     def createClauses(predicates: List[(String, Int)], functions: List[(String, Int)], database: prolog.Absyn.Db): Seq[HornClause] = {
         
         var result = Seq[HornClause]()
         
-        var c = Seq[(String, ADT.CtorSignature)]()
+        var c = Seq[(String, CtorSignature)]()
         for (function <- functions) {
             val (name, arity) = function
-            var argList = Seq[(String, ADT.ADTSort)]()
+            var argList = Seq[(String, ADTSort)]()
             for (i <- 1 to arity) {
                 val arg = (name + "_" + i, ADTSort(0))
                 argList = argList :+ arg
             }
             c = c :+ (name, CtorSignature(argList, ADTSort(0)))
         }
-
+        c = c :+ ("anInt", CtorSignature(Seq(("value", OtherSort(Sort.Integer))) , ADTSort(0)))
         val adt = new ADT(Seq("U"), c) 
 
         val astBuilder = new ASTBuilder(adt)
