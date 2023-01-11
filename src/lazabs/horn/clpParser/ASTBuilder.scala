@@ -4,8 +4,7 @@ import lazabs.ast.ASTree._
 import ap.theories.ADT
 import lazabs.types._
 
-// Return a class object instead of List[HornLiteral], String, Expression)
-// case class
+// Return a class object instead of List[HornLiteral], String, Expression). Use case class
 
 class ASTBuilder(adt: ADT) extends FoldVisitor[(List[HornLiteral], String, Expression), Unit] {
 
@@ -23,14 +22,12 @@ class ASTBuilder(adt: ADT) extends FoldVisitor[(List[HornLiteral], String, Expre
         "V_" + varCount
     }
 
-
     def getName(atom: prolog.Absyn.Atom) = {
         atom match {
             case a: prolog.Absyn.Atm => a.lident_
             case a: prolog.Absyn.EAtm => a.ident_
         }
     }
-
 
     override def visit(atom: prolog.Absyn.Atm, u: Unit) = {
         val atomName = atom.lident_
@@ -50,7 +47,6 @@ class ASTBuilder(adt: ADT) extends FoldVisitor[(List[HornLiteral], String, Expre
         ) 
         (List[HornLiteral](hl), freshVar, new Expression())
     }
-
 
     override def visit(complex: prolog.Absyn.Complex, u: Unit) = {
         var variables = List[Variable]()
@@ -176,15 +172,6 @@ class ASTBuilder(adt: ADT) extends FoldVisitor[(List[HornLiteral], String, Expre
             hornLiterals = hornLiterals ++ hls
         }
 
-        /*
-        println("List of literals returned for rule " + rule)
-        for (hl <- hornLiterals) {
-            println(hl)
-        }
-        println()
-        */
-
-
         val headPredicate = rule.predicate_.asInstanceOf[prolog.Absyn.Predicate]
         if (headPredicate.isInstanceOf[prolog.Absyn.APred]) {
             hornLiterals = hornLiterals ++ headPredicate.asInstanceOf[prolog.Absyn.APred].accept(this, u)._1
@@ -212,115 +199,171 @@ class ASTBuilder(adt: ADT) extends FoldVisitor[(List[HornLiteral], String, Expre
             hornLiterals = hornLiterals ++ hls
         }
 
-        /*
-        println("List of literals returned for query")
-        for (hl <- hornLiterals) {
-            println(hl)
-        }
-        */
-
         (hornLiterals, "", new Expression())
     }
 
     override def visit(eq: prolog.Absyn.EqExpr, u: Unit) = {
-        val left: Expression = eq.expr_1.accept(this, u)._3
-        val right: Expression = eq.expr_2.accept(this, u)._3
-        val expr = new BinaryExpression(left, EqualityOp(), right)
-        (List[HornLiteral](new Interp(expr)), "", expr)
+        val l = eq.expr_1.accept(this, u)._3
+        val r = eq.expr_2.accept(this, u)._3
+
+        var result = new Expression()
+
+        if (eq.expr_1.isInstanceOf[prolog.Absyn.VarExpr] && eq.expr_2.isInstanceOf[prolog.Absyn.VarExpr])
+            result = new BinaryExpression(l, EqualityOp(), r)
+        else {
+            val left = ADTsel(adt, "value", List(l))
+            val right = ADTsel(adt, "value", List(r))
+            val forceIntCondition = getForceIntCondition(l, r)
+            result = new BinaryExpression(forceIntCondition, ConjunctionOp(), new BinaryExpression(left, EqualityOp(), right))
+        }
+
+        (List[HornLiteral](new Interp(result)), "", result)
     }
 
     override def visit(neq: prolog.Absyn.NeqExpr, u: Unit) = {
-        val left: Expression = neq.expr_1.accept(this, u)._3
-        val right: Expression = neq.expr_2.accept(this, u)._3
-        val expr = new BinaryExpression(left, InequalityOp(), right)
-        (List[HornLiteral](new Interp(expr)), "", expr)
+        val l = neq.expr_1.accept(this, u)._3
+        val r = neq.expr_2.accept(this, u)._3
+
+        var result = new Expression()
+
+        if (neq.expr_1.isInstanceOf[prolog.Absyn.VarExpr] && neq.expr_2.isInstanceOf[prolog.Absyn.VarExpr])
+            result = new BinaryExpression(l, EqualityOp(), r)
+        else {
+            val left = ADTsel(adt, "value", List(l))
+            val right = ADTsel(adt, "value", List(r))
+            val forceIntCondition = getForceIntCondition(l, r)
+            result = new BinaryExpression(forceIntCondition, ConjunctionOp(), new BinaryExpression(left, InequalityOp(), right))
+        }
+
+        (List[HornLiteral](new Interp(result)), "", result)
+    }
+
+    def getForceIntCondition(l: Expression, r: Expression): Expression = {
+        val left = BinaryExpression(ADTtest(adt, 0, l), EqualityOp(), NumericalConst(BigInt(anIntIdx)))
+        val right = BinaryExpression(ADTtest(adt, 0, r), EqualityOp(), NumericalConst(BigInt(anIntIdx)))
+        new BinaryExpression(left, ConjunctionOp(), right)
     }
 
     override def visit(gt: prolog.Absyn.GtExpr, u: Unit) = {
-        val left: Expression = gt.expr_1.accept(this, u)._3
-        val right: Expression = gt.expr_2.accept(this, u)._3
-        val expr = new BinaryExpression(left, GreaterThanOp(), right)
-        (List[HornLiteral](new Interp(expr)), "", expr)
+        val l = gt.expr_1.accept(this, u)._3
+        val r = gt.expr_2.accept(this, u)._3
+
+        val forceInt = getForceIntCondition(l, r)
+        val left = ADTsel(adt, "value", List(l))
+        val right = ADTsel(adt, "value", List(r))
+
+        val result = new BinaryExpression(forceInt, ConjunctionOp(), new BinaryExpression(left, GreaterThanOp(), right))
+
+        (List[HornLiteral](new Interp(result)), "", result)
     }
 
     override def visit(lt: prolog.Absyn.LtExpr, u: Unit) = {
-        val left: Expression = lt.expr_1.accept(this, u)._3
-        val right: Expression = lt.expr_2.accept(this, u)._3
-        val expr = new BinaryExpression(left, LessThanOp(), right)
-        (List[HornLiteral](new Interp(expr)), "", expr)
+        val l = lt.expr_1.accept(this, u)._3
+        val r = lt.expr_2.accept(this, u)._3
+
+        val forceInt = getForceIntCondition(l, r)
+        val left = ADTsel(adt, "value", List(l))
+        val right = ADTsel(adt, "value", List(r))
+
+        val result = new BinaryExpression(forceInt, ConjunctionOp(), new BinaryExpression(left, LessThanOp(), right))
+
+        (List[HornLiteral](new Interp(result)), "", result)
     }
 
     override def visit(geq: prolog.Absyn.GeqExpr, u: Unit) = {
-        val left_result = geq.expr_1.accept(this, u)._3
-        val right_result = geq.expr_2.accept(this, u)._3
+        val l = geq.expr_1.accept(this, u)._3
+        val r = geq.expr_2.accept(this, u)._3
 
-        val left: Expression = ADTsel(adt, "value", List(left_result))
-        val right: Expression = ADTsel(adt, "value", List(right_result))
-        
-        val force_int_left = ADTtest(adt, 0, left_result)
-        val force_int_right = ADTtest(adt, 0, right_result)
-        val eq1 = BinaryExpression(force_int_left, EqualityOp(), NumericalConst(BigInt(anIntIdx)))
-        val eq2 = BinaryExpression(force_int_right, EqualityOp(), NumericalConst(BigInt(anIntIdx)))
+        val forceInt = getForceIntCondition(l, r)
+        val left = ADTsel(adt, "value", List(l))
+        val right = ADTsel(adt, "value", List(r))
 
+        val result = new BinaryExpression(forceInt, ConjunctionOp(), new BinaryExpression(left, GreaterThanEqualOp(), right))
 
-        val conj = new BinaryExpression(eq1, ConjunctionOp(), eq2)
-
-        val result = new BinaryExpression(conj, ConjunctionOp(), new BinaryExpression(left, GreaterThanEqualOp(), right))
-
-        // val expr = ADTctor(adt, "anInt", List(result))
         (List[HornLiteral](new Interp(result)), "", result)
     }
 
     override def visit(leq: prolog.Absyn.LeqExpr, u: Unit) = {
-        val left: Expression = leq.expr_1.accept(this, u)._3
-        val right: Expression = leq.expr_2.accept(this, u)._3
-        val expr = new BinaryExpression(left, LessThanEqualOp(), right)
-        (List[HornLiteral](new Interp(expr)), "", expr)
+        val l = leq.expr_1.accept(this, u)._3
+        val r = leq.expr_2.accept(this, u)._3
+
+        val forceInt = getForceIntCondition(l, r)
+        val left = ADTsel(adt, "value", List(l))
+        val right = ADTsel(adt, "value", List(r))
+
+        val result = new BinaryExpression(forceInt, ConjunctionOp(), new BinaryExpression(left, LessThanEqualOp(), right))
+
+        (List[HornLiteral](new Interp(result)), "", result)
     }
 
     override def visit(add: prolog.Absyn.AddExpr, u: Unit) = {
-        val left: Expression = add.expr_1.accept(this, u)._3
-        val right: Expression = add.expr_2.accept(this, u)._3
-        val expr = new BinaryExpression(left, AdditionOp(), right)
-        (List[HornLiteral](new Interp(expr)), "", expr)
+        val l = add.expr_1.accept(this, u)._3
+        val r = add.expr_2.accept(this, u)._3
+
+        val forceInt = getForceIntCondition(l, r)
+        val left = ADTsel(adt, "value", List(l))
+        val right = ADTsel(adt, "value", List(r))
+
+        val result = new BinaryExpression(forceInt, ConjunctionOp(), new BinaryExpression(left, AdditionOp(), right))
+
+        (List[HornLiteral](new Interp(result)), "", result)
     }
 
     override def visit(sub: prolog.Absyn.SubExpr, u: Unit) = {
-        val left: Expression = sub.expr_1.accept(this, u)._3
-        val right: Expression = sub.expr_2.accept(this, u)._3
-        val expr = new BinaryExpression(left, SubtractionOp(), right)
-        (List[HornLiteral](new Interp(expr)), "", expr)
+        val l = sub.expr_1.accept(this, u)._3
+        val r = sub.expr_2.accept(this, u)._3
+
+        val forceInt = getForceIntCondition(l, r)
+        val left = ADTsel(adt, "value", List(l))
+        val right = ADTsel(adt, "value", List(r))
+
+        val result = new BinaryExpression(forceInt, ConjunctionOp(), new BinaryExpression(left, SubtractionOp(), right))
+
+        (List[HornLiteral](new Interp(result)), "", result)
     }
 
     override def visit(mult: prolog.Absyn.MultExpr, u: Unit) = {
-        val left: Expression = mult.expr_1.accept(this, u)._3
-        val right: Expression = mult.expr_2.accept(this, u)._3
-        val expr = new BinaryExpression(left, MultiplicationOp(), right)
-        (List[HornLiteral](new Interp(expr)), "", expr)
+        val l = mult.expr_1.accept(this, u)._3
+        val r = mult.expr_2.accept(this, u)._3
+
+        val forceInt = getForceIntCondition(l, r)
+        val left = ADTsel(adt, "value", List(l))
+        val right = ADTsel(adt, "value", List(r))
+
+        val result = new BinaryExpression(forceInt, ConjunctionOp(), new BinaryExpression(left, MultiplicationOp(), right))
+
+        (List[HornLiteral](new Interp(result)), "", result)
     }
 
     override def visit(div: prolog.Absyn.DivExpr, u: Unit) = {
-        val left: Expression = div.expr_1.accept(this, u)._3
-        val right: Expression = div.expr_2.accept(this, u)._3
-        val expr = new BinaryExpression(left, DivisionOp(), right)
-        (List[HornLiteral](new Interp(expr)), "", expr)
+        val l = div.expr_1.accept(this, u)._3
+        val r = div.expr_2.accept(this, u)._3
+
+        val forceInt = getForceIntCondition(l, r)
+        val left = ADTsel(adt, "value", List(l))
+        val right = ADTsel(adt, "value", List(r))
+
+        val result = new BinaryExpression(forceInt, ConjunctionOp(), new BinaryExpression(left, DivisionOp(), right))
+
+        (List[HornLiteral](new Interp(result)), "", result)
     }
 
     override def visit(mod: prolog.Absyn.ModExpr, u: Unit) = {
-        val left: Expression = mod.expr_1.accept(this, u)._3
-        val right: Expression = mod.expr_2.accept(this, u)._3
-        val expr = new BinaryExpression(left, ModuloOp(), right)
-        (List[HornLiteral](new Interp(expr)), "", expr)
+        val l = mod.expr_1.accept(this, u)._3
+        val r = mod.expr_2.accept(this, u)._3
+
+        val forceInt = getForceIntCondition(l, r)
+        val left = ADTsel(adt, "value", List(l))
+        val right = ADTsel(adt, "value", List(r))
+
+        val result = new BinaryExpression(forceInt, ConjunctionOp(), new BinaryExpression(left, ModuloOp(), right))
+
+        (List[HornLiteral](new Interp(result)), "", result)
     }
     
     override def visit(num: prolog.Absyn.NumExpr, u: Unit) = {
-        println("anInt is " + anInt)
-        
-        val expr = new NumericalConst(BigInt(num.num_))
-        val tmp = ADTctor(adt, "anInt", List(expr))
-        // (List[HornLiteral](new Interp(expr)), "", expr)
-        (List[HornLiteral](), "", tmp)
-        // We would like to return anInt(expr)
+        val result = ADTctor(adt, "anInt", List(new NumericalConst(BigInt(num.num_))))
+        (List[HornLiteral](), "", result)
     }
 
     override def visit(ve: prolog.Absyn.VarExpr, u: Unit) = {
