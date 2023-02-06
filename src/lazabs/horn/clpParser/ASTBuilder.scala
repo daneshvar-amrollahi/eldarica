@@ -161,7 +161,7 @@ class ASTBuilder(adt: ADT) extends FoldVisitor[(List[HornLiteral], String, Expre
         result
     }
 
-    override def visit(rule: prolog.Absyn.Rule, u: Unit) = { //ToDo: fix set
+    override def visit(rule: prolog.Absyn.Rule, u: Unit) = { 
         var hornLiterals = List[HornLiteral]()
         var forceInts = Set[HornLiteral]()
 
@@ -194,7 +194,7 @@ class ASTBuilder(adt: ADT) extends FoldVisitor[(List[HornLiteral], String, Expre
         (hornLiterals, "", new Expression(), Set[HornLiteral]())
     }
 
-    override def visit(query: prolog.Absyn.Query, u: Unit) = { //ToDo: fix set. Can body have expressions?
+    override def visit(query: prolog.Absyn.Query, u: Unit) = { 
         var hornLiterals = List[HornLiteral]()
         var forceInts = Set[HornLiteral]()
 
@@ -227,7 +227,7 @@ class ASTBuilder(adt: ADT) extends FoldVisitor[(List[HornLiteral], String, Expre
         val rightExpr = r._3
         val leftIntForces = l._4
         val rightIntForces = r._4 
-        val forceIntCondition = new Interp(getForceIntCondition(leftExpr, rightExpr))
+        val forceInt = Set[HornLiteral](getForceInt(leftExpr), getForceInt(rightExpr))
 
         var result = new Expression()
 
@@ -238,71 +238,86 @@ class ASTBuilder(adt: ADT) extends FoldVisitor[(List[HornLiteral], String, Expre
             val right = ADTsel(adt, "value", List(rightExpr))
     
             result = ADTctor(adt, "anInt", List(new BinaryExpression(left, EqualityOp(), right)))
-
-            // result = new BinaryExpression(forceIntCondition, ConjunctionOp(), new BinaryExpression(left, EqualityOp(), right))
         }
 
-        val forceInts = (leftIntForces | rightIntForces) + forceIntCondition
+        var forceInts = Set[HornLiteral]()
+        if (eq.expr_1.isInstanceOf[prolog.Absyn.VarExpr] && eq.expr_2.isInstanceOf[prolog.Absyn.VarExpr])
+            forceInts = leftIntForces | rightIntForces
+        else
+            forceInts = leftIntForces | rightIntForces | forceInt
 
         (List[HornLiteral](new Interp(result)), "", result, forceInts)
     }
 
     override def visit(neq: prolog.Absyn.NeqExpr, u: Unit) = {
-        val l = neq.expr_1.accept(this, u)._3
-        val r = neq.expr_2.accept(this, u)._3
+        val l = neq.expr_1.accept(this, u)
+        val r = neq.expr_2.accept(this, u)
+        val leftExpr = l._3
+        val rightExpr = r._3
+        val leftIntForces = l._4
+        val rightIntForces = r._4 
+        val forceInt = Set[HornLiteral](getForceInt(leftExpr), getForceInt(rightExpr))
 
         var result = new Expression()
 
         if (neq.expr_1.isInstanceOf[prolog.Absyn.VarExpr] && neq.expr_2.isInstanceOf[prolog.Absyn.VarExpr])
-            result = new BinaryExpression(l, InequalityOp(), r)
-         
+            result = new BinaryExpression(leftExpr, InequalityOp(), rightExpr)
         else {
-            val left = ADTsel(adt, "value", List(l))
-            val right = ADTsel(adt, "value", List(r))
-            val forceIntCondition = getForceIntCondition(l, r)
-
+            val left = ADTsel(adt, "value", List(leftExpr))
+            val right = ADTsel(adt, "value", List(rightExpr))
+    
             result = ADTctor(adt, "anInt", List(new BinaryExpression(left, InequalityOp(), right)))
-
-            // result = new BinaryExpression(forceIntCondition, ConjunctionOp(), new BinaryExpression(left, InequalityOp(), right))
         }
 
-        (List[HornLiteral](new Interp(result)), "", result, Set[HornLiteral]())
+        var forceInts = Set[HornLiteral]()
+
+        if (neq.expr_1.isInstanceOf[prolog.Absyn.VarExpr] && neq.expr_2.isInstanceOf[prolog.Absyn.VarExpr])
+            forceInts = leftIntForces | rightIntForces
+        else
+            forceInts = leftIntForces | rightIntForces | forceInt
+
+        (List[HornLiteral](new Interp(result)), "", result, forceInts)
     }
 
-    def getForceIntCondition(l: Expression, r: Expression): Expression = {
-        val left = BinaryExpression(ADTtest(adt, 0, l), EqualityOp(), NumericalConst(BigInt(anIntIdx)))
-        val right = BinaryExpression(ADTtest(adt, 0, r), EqualityOp(), NumericalConst(BigInt(anIntIdx)))
-        new BinaryExpression(left, ConjunctionOp(), right)
+
+    def getForceInt(e: Expression): HornLiteral = {
+        new Interp(BinaryExpression(ADTtest(adt, 0, e), EqualityOp(), NumericalConst(BigInt(anIntIdx))))
     }
 
     override def visit(gt: prolog.Absyn.GtExpr, u: Unit) = {
-        val l = gt.expr_1.accept(this, u)._3
-        val r = gt.expr_2.accept(this, u)._3
+        val l = gt.expr_1.accept(this, u)
+        val r = gt.expr_2.accept(this, u)
+        val leftExpr = l._3
+        val rightExpr = r._3
+        val leftIntForces = l._4
+        val rightIntForces = r._4 
 
-        val forceInt = getForceIntCondition(l, r)
-        val left = ADTsel(adt, "value", List(l))
-        val right = ADTsel(adt, "value", List(r))
+        val forceInt = Set[HornLiteral](getForceInt(leftExpr), getForceInt(rightExpr))
+        val left = ADTsel(adt, "value", List(leftExpr))
+        val right = ADTsel(adt, "value", List(rightExpr))
+        // val result = ADTctor(adt, "anInt", List(new BinaryExpression(left, AdditionOp(), right)))
+        val result = new BinaryExpression(left, GreaterThanOp(), right)
 
-        val result = new BinaryExpression(forceInt, ConjunctionOp(), new BinaryExpression(left, GreaterThanOp(), right))
-        // val result = ADTctor(adt, "anInt", List(new BinaryExpression(left, GreaterThanOp(), right))) 
-
-
-        (List[HornLiteral](new Interp(result)), "", result, Set[HornLiteral]())
+        val forceInts = (leftIntForces | rightIntForces) | forceInt
+        (List[HornLiteral](new Interp(result)), "", result, forceInts)
     }
 
     override def visit(lt: prolog.Absyn.LtExpr, u: Unit) = {
-        val l = lt.expr_1.accept(this, u)._3
-        val r = lt.expr_2.accept(this, u)._3
+        val l = lt.expr_1.accept(this, u)
+        val r = lt.expr_2.accept(this, u)
+        val leftExpr = l._3
+        val rightExpr = r._3
+        val leftIntForces = l._4
+        val rightIntForces = r._4 
 
-        val forceInt = getForceIntCondition(l, r)
-        val left = ADTsel(adt, "value", List(l))
-        val right = ADTsel(adt, "value", List(r))
+        val forceInt = Set[HornLiteral](getForceInt(leftExpr), getForceInt(rightExpr))
+        val left = ADTsel(adt, "value", List(leftExpr))
+        val right = ADTsel(adt, "value", List(rightExpr))
+        // val result = ADTctor(adt, "anInt", List(new BinaryExpression(left, AdditionOp(), right)))
+        val result = new BinaryExpression(left, LessThanOp(), right)
 
-        val result = new BinaryExpression(forceInt, ConjunctionOp(), new BinaryExpression(left, LessThanOp(), right))
-        // val result = ADTctor(adt, "anInt", List(new BinaryExpression(left, LessThanOp(), right))) 
-        
-
-        (List[HornLiteral](new Interp(result)), "", result, Set[HornLiteral]())
+        val forceInts = (leftIntForces | rightIntForces) | forceInt
+        (List[HornLiteral](new Interp(result)), "", result, forceInts)
     }
 
     override def visit(geq: prolog.Absyn.GeqExpr, u: Unit) = {
@@ -312,132 +327,124 @@ class ASTBuilder(adt: ADT) extends FoldVisitor[(List[HornLiteral], String, Expre
         val rightExpr = r._3
         val leftIntForces = l._4
         val rightIntForces = r._4 
-        val forceInt = getForceIntCondition(leftExpr, rightExpr)
+        val forceInt = Set[HornLiteral](getForceInt(leftExpr), getForceInt(rightExpr))
         val left = ADTsel(adt, "value", List(leftExpr))
         val right = ADTsel(adt, "value", List(rightExpr))
-
-        println("forceInt in geq: " + forceInt)
 
         // val result = new BinaryExpression(forceInt, ConjunctionOp(), new BinaryExpression(left, GreaterThanEqualOp(), right))
         // val result = ADTctor(adt, "anInt", List(new BinaryExpression(left, GreaterThanEqualOp(), right)))
         val result = new BinaryExpression(left, GreaterThanEqualOp(), right)
-
-        val forceInts: Set[HornLiteral] = (leftIntForces | rightIntForces) + new Interp(forceInt)
-
+        val forceInts: Set[HornLiteral] = (leftIntForces | rightIntForces) | forceInt
         (List[HornLiteral](new Interp(result)), "", result, forceInts)
         // (List[HornLiteral](new Interp(result)), "", result, Set[HornLiteral]())
-
     }
 
     override def visit(leq: prolog.Absyn.LeqExpr, u: Unit) = {
         val l = leq.expr_1.accept(this, u)
         val r = leq.expr_2.accept(this, u)
-
         val leftExpr = l._3
         val rightExpr = r._3
-
         val leftIntForces = l._4
         val rightIntForces = r._4 
-        
-        val forceInt = getForceIntCondition(leftExpr, rightExpr)
+
+        val forceInt = Set[HornLiteral](getForceInt(leftExpr), getForceInt(rightExpr))
         val left = ADTsel(adt, "value", List(leftExpr))
         val right = ADTsel(adt, "value", List(rightExpr))
+        // val result = ADTctor(adt, "anInt", List(new BinaryExpression(left, AdditionOp(), right)))
+        val result = new BinaryExpression(left, LessThanEqualOp(), right)
 
-        // println("forceInt in geq: " + forceInt)
-
-        // val result = new BinaryExpression(forceInt, ConjunctionOp(), new BinaryExpression(left, GreaterThanEqualOp(), right))
-        val result = ADTctor(adt, "anInt", List(new BinaryExpression(left, LessThanEqualOp(), right)))
-
-        val forceInts = (leftIntForces | rightIntForces) + new Interp(forceInt)
-
+        val forceInts = (leftIntForces | rightIntForces) | forceInt
         (List[HornLiteral](new Interp(result)), "", result, forceInts)
     }
 
     override def visit(add: prolog.Absyn.AddExpr, u: Unit) = {
         val l = add.expr_1.accept(this, u)
         val r = add.expr_2.accept(this, u)
- 
-
-
         val leftExpr = l._3
         val rightExpr = r._3
-
         val leftIntForces = l._4
         val rightIntForces = r._4 
-        
-        val forceInt = getForceIntCondition(leftExpr, rightExpr)
 
+        val forceInt = Set[HornLiteral](getForceInt(leftExpr), getForceInt(rightExpr))
         val left = ADTsel(adt, "value", List(leftExpr))
         val right = ADTsel(adt, "value", List(rightExpr))
+        val result = ADTctor(adt, "anInt", List(new BinaryExpression(left, AdditionOp(), right)))
+        // val result = new BinaryExpression(left, AdditionOp(), right)
 
-        // println("forceInt in add: " + forceInt)
-
-        // val result = new BinaryExpression(forceInt, ConjunctionOp(), new BinaryExpression(left, GreaterThanEqualOp(), right))
-        // val result = ADTctor(adt, "anInt", List(new BinaryExpression(left, AdditionOp(), right)))
-        val result = new BinaryExpression(left, AdditionOp(), right)
-
-        val forceInts = (leftIntForces | rightIntForces) + new Interp(forceInt)
-
+        val forceInts = (leftIntForces | rightIntForces) | forceInt
         (List[HornLiteral](new Interp(result)), "", result, forceInts)
     }
 
     override def visit(sub: prolog.Absyn.SubExpr, u: Unit) = {
-        val l = sub.expr_1.accept(this, u)._3
-        val r = sub.expr_2.accept(this, u)._3
+        val l = sub.expr_1.accept(this, u)
+        val r = sub.expr_2.accept(this, u)
+        val leftExpr = l._3
+        val rightExpr = r._3
+        val leftIntForces = l._4
+        val rightIntForces = r._4 
 
-        val forceInt = getForceIntCondition(l, r)
-        val left = ADTsel(adt, "value", List(l))
-        val right = ADTsel(adt, "value", List(r))
-
-        // val result = new BinaryExpression(forceInt, ConjunctionOp(), new BinaryExpression(left, SubtractionOp(), right))
+        val forceInt = Set[HornLiteral](getForceInt(leftExpr), getForceInt(rightExpr))
+        val left = ADTsel(adt, "value", List(leftExpr))
+        val right = ADTsel(adt, "value", List(rightExpr))
         val result = ADTctor(adt, "anInt", List(new BinaryExpression(left, SubtractionOp(), right)))
+        // val result = new BinaryExpression(left, SubtractionOp(), right)
 
-        (List[HornLiteral](new Interp(result)), "", result, Set[HornLiteral]())
+        val forceInts = (leftIntForces | rightIntForces) | forceInt
+        (List[HornLiteral](new Interp(result)), "", result, forceInts)
     }
 
     override def visit(mult: prolog.Absyn.MultExpr, u: Unit) = {
-        val l = mult.expr_1.accept(this, u)._3
-        val r = mult.expr_2.accept(this, u)._3
+        val l = mult.expr_1.accept(this, u)
+        val r = mult.expr_2.accept(this, u)
+        val leftExpr = l._3
+        val rightExpr = r._3
+        val leftIntForces = l._4
+        val rightIntForces = r._4 
 
-        val forceInt = getForceIntCondition(l, r)
-        val left = ADTsel(adt, "value", List(l))
-        val right = ADTsel(adt, "value", List(r))
-
-        // val result = new BinaryExpression(forceInt, ConjunctionOp(), new BinaryExpression(left, MultiplicationOp(), right))
+        val forceInt = Set[HornLiteral](getForceInt(leftExpr), getForceInt(rightExpr))
+        val left = ADTsel(adt, "value", List(leftExpr))
+        val right = ADTsel(adt, "value", List(rightExpr))
         val result = ADTctor(adt, "anInt", List(new BinaryExpression(left, MultiplicationOp(), right)))
+        // val result = new BinaryExpression(left, MultiplicationOp(), right)
 
-
-        (List[HornLiteral](new Interp(result)), "", result, Set[HornLiteral]())
+        val forceInts = (leftIntForces | rightIntForces) | forceInt
+        (List[HornLiteral](new Interp(result)), "", result, forceInts)
     }
 
     override def visit(div: prolog.Absyn.DivExpr, u: Unit) = {
-        val l = div.expr_1.accept(this, u)._3
-        val r = div.expr_2.accept(this, u)._3
+        val l = div.expr_1.accept(this, u)
+        val r = div.expr_2.accept(this, u)
+        val leftExpr = l._3
+        val rightExpr = r._3
+        val leftIntForces = l._4
+        val rightIntForces = r._4 
 
-        val forceInt = getForceIntCondition(l, r)
-        val left = ADTsel(adt, "value", List(l))
-        val right = ADTsel(adt, "value", List(r))
-
-        // val result = new BinaryExpression(forceInt, ConjunctionOp(), new BinaryExpression(left, DivisionOp(), right))
+        val forceInt = Set[HornLiteral](getForceInt(leftExpr), getForceInt(rightExpr))
+        val left = ADTsel(adt, "value", List(leftExpr))
+        val right = ADTsel(adt, "value", List(rightExpr))
         val result = ADTctor(adt, "anInt", List(new BinaryExpression(left, DivisionOp(), right)))
+        // val result = new BinaryExpression(left, DivisionOp(), right)
 
-
-        (List[HornLiteral](new Interp(result)), "", result, Set[HornLiteral]())
+        val forceInts = (leftIntForces | rightIntForces) | forceInt
+        (List[HornLiteral](new Interp(result)), "", result, forceInts)
     }
 
     override def visit(mod: prolog.Absyn.ModExpr, u: Unit) = {
-        val l = mod.expr_1.accept(this, u)._3
-        val r = mod.expr_2.accept(this, u)._3
+        val l = mod.expr_1.accept(this, u)
+        val r = mod.expr_2.accept(this, u)
+        val leftExpr = l._3
+        val rightExpr = r._3
+        val leftIntForces = l._4
+        val rightIntForces = r._4 
 
-        val forceInt = getForceIntCondition(l, r)
-        val left = ADTsel(adt, "value", List(l))
-        val right = ADTsel(adt, "value", List(r))
-
-        // val result = new BinaryExpression(forceInt, ConjunctionOp(), new BinaryExpression(left, ModuloOp(), right))
+        val forceInt = Set[HornLiteral](getForceInt(leftExpr), getForceInt(rightExpr))
+        val left = ADTsel(adt, "value", List(leftExpr))
+        val right = ADTsel(adt, "value", List(rightExpr))
         val result = ADTctor(adt, "anInt", List(new BinaryExpression(left, ModuloOp(), right)))
+        // val result = new BinaryExpression(left, ModuloOp(), right)
 
-
-        (List[HornLiteral](new Interp(result)), "", result, Set[HornLiteral]())
+        val forceInts = (leftIntForces | rightIntForces) | forceInt
+        (List[HornLiteral](new Interp(result)), "", result, forceInts)
     }
     
     override def visit(num: prolog.Absyn.NumExpr, u: Unit) = {
