@@ -140,10 +140,28 @@ class ASTBuilder(adt: ADT) extends FoldVisitor[(List[HornLiteral], String, Expre
             } else if (term.isInstanceOf[prolog.Absyn.VarT]) {
                 val varName = term.asInstanceOf[prolog.Absyn.VarT].var_.asInstanceOf[prolog.Absyn.V].uident_ // Fix for Wild
                 parameters = parameters :+ new Parameter(varName, new AdtType(usort))
-            } 
+            } else if (term.isInstanceOf[prolog.Absyn.TNum]) {
+                val number = term.asInstanceOf[prolog.Absyn.TNum]
+                val arg = number.accept(this, u)
+                val argVar: String = arg._2
+                val argHLs: List[HornLiteral] = arg._1
+                parameters = parameters :+ new Parameter(argVar, new AdtType(usort))
+                hls = hls ++ argHLs
+            }
         }        
         val hl: HornLiteral = new RelVar(relationName, parameters)
         (hls :+ hl, "", new Expression(), Set[HornLiteral]())
+    }
+
+
+    
+
+    override def visit(tnum: prolog.Absyn.TNum, u: Unit) = {
+        val freshVar = getFreshVarName()
+        val hl : HornLiteral = new Interp(
+            BinaryExpression(new Variable(freshVar).stype(new AdtType(usort)), EqualityOp(), new ADTctor(adt, "anInt", List(new NumericalConst(BigInt(tnum.num_)))).stype(new AdtType(usort)))
+        )
+        (List[HornLiteral](hl), freshVar, new Expression(), Set[HornLiteral]())
     }
 
     override def visit(pred: prolog.Absyn.EPred, u: Unit) = {
