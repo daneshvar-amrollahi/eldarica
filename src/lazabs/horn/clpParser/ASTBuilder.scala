@@ -238,7 +238,7 @@ class ASTBuilder(adt: ADT) extends FoldVisitor[(List[HornLiteral], String, Expre
         (hornLiterals, "", new Expression(), Set[HornLiteral]())
     }
 
-    override def visit(eq: prolog.Absyn.EqExpr, u: Unit) = {
+    override def visit(eq: prolog.Absyn.EqExpr, u: Unit) = { // #= : integer arithmetic
         val l = eq.expr_1.accept(this, u)
         val r = eq.expr_2.accept(this, u)
         val leftExpr = l._3
@@ -246,28 +246,30 @@ class ASTBuilder(adt: ADT) extends FoldVisitor[(List[HornLiteral], String, Expre
         val leftIntForces = l._4
         val rightIntForces = r._4 
         val forceInt = Set[HornLiteral](getForceInt(leftExpr), getForceInt(rightExpr))
+        
+        val left = ADTsel(adt, "theInt", List(leftExpr))
+        val right = ADTsel(adt, "theInt", List(rightExpr))    
+        val result: Expression = ADTctor(adt, "anInt", List(new BinaryExpression(left, EqualityOp(), right)))
+        val forceInts: Set[HornLiteral] = leftIntForces | rightIntForces | forceInt
+        
+        (List[HornLiteral](new Interp(result)), "", result, forceInts)
+    }
 
-        var result = new Expression()
+    override def visit(eqq: prolog.Absyn.EqqExpr, u: Unit) = { // = : not integer arithmetic
+        val l = eqq.expr_1.accept(this, u)
+        val r = eqq.expr_2.accept(this, u)
+        val leftExpr = l._3
+        val rightExpr = r._3
+        val leftIntForces = l._4
+        val rightIntForces = r._4 
 
-        if (eq.expr_1.isInstanceOf[prolog.Absyn.VarExpr] && eq.expr_2.isInstanceOf[prolog.Absyn.VarExpr])
-            result = new BinaryExpression(leftExpr, EqualityOp(), rightExpr)
-        else {
-            val left = ADTsel(adt, "theInt", List(leftExpr))
-            val right = ADTsel(adt, "theInt", List(rightExpr))
-    
-            result = ADTctor(adt, "anInt", List(new BinaryExpression(left, EqualityOp(), right)))
-        }
-
-        var forceInts = Set[HornLiteral]()
-        if (eq.expr_1.isInstanceOf[prolog.Absyn.VarExpr] && eq.expr_2.isInstanceOf[prolog.Absyn.VarExpr])
-            forceInts = leftIntForces | rightIntForces
-        else
-            forceInts = leftIntForces | rightIntForces | forceInt
+        val result = new BinaryExpression(leftExpr, EqualityOp(), rightExpr)
+        val forceInts : Set[HornLiteral] = leftIntForces | rightIntForces
 
         (List[HornLiteral](new Interp(result)), "", result, forceInts)
     }
 
-    override def visit(neq: prolog.Absyn.NeqExpr, u: Unit) = {
+    override def visit(neq: prolog.Absyn.NeqExpr, u: Unit) = { // #\= : integer arithmetic
         val l = neq.expr_1.accept(this, u)
         val r = neq.expr_2.accept(this, u)
         val leftExpr = l._3
@@ -275,24 +277,25 @@ class ASTBuilder(adt: ADT) extends FoldVisitor[(List[HornLiteral], String, Expre
         val leftIntForces = l._4
         val rightIntForces = r._4 
         val forceInt = Set[HornLiteral](getForceInt(leftExpr), getForceInt(rightExpr))
+        
+        val left = ADTsel(adt, "theInt", List(leftExpr))
+        val right = ADTsel(adt, "theInt", List(rightExpr))    
+        val result: Expression = ADTctor(adt, "anInt", List(new BinaryExpression(left, InequalityOp(), right)))
+        val forceInts: Set[HornLiteral] = leftIntForces | rightIntForces | forceInt
+        
+        (List[HornLiteral](new Interp(result)), "", result, forceInts)
+    }
 
-        var result = new Expression()
+    override def visit(neqq: prolog.Absyn.NeqqExpr, u: Unit) = { // =\= : not integer arithmetic
+        val l = neqq.expr_1.accept(this, u)
+        val r = neqq.expr_2.accept(this, u)
+        val leftExpr = l._3
+        val rightExpr = r._3
+        val leftIntForces = l._4
+        val rightIntForces = r._4 
 
-        if (neq.expr_1.isInstanceOf[prolog.Absyn.VarExpr] && neq.expr_2.isInstanceOf[prolog.Absyn.VarExpr])
-            result = new BinaryExpression(leftExpr, InequalityOp(), rightExpr)
-        else {
-            val left = ADTsel(adt, "theInt", List(leftExpr))
-            val right = ADTsel(adt, "theInt", List(rightExpr))
-    
-            result = ADTctor(adt, "anInt", List(new BinaryExpression(left, InequalityOp(), right)))
-        }
-
-        var forceInts = Set[HornLiteral]()
-
-        if (neq.expr_1.isInstanceOf[prolog.Absyn.VarExpr] && neq.expr_2.isInstanceOf[prolog.Absyn.VarExpr])
-            forceInts = leftIntForces | rightIntForces
-        else
-            forceInts = leftIntForces | rightIntForces | forceInt
+        val result = new BinaryExpression(leftExpr, InequalityOp(), rightExpr)
+        val forceInts : Set[HornLiteral] = leftIntForces | rightIntForces
 
         (List[HornLiteral](new Interp(result)), "", result, forceInts)
     }
